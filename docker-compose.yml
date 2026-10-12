@@ -1,0 +1,86 @@
+# Three identical app nodes, one client, one toxiproxy.
+# Each app node listens on 3000 inside its container.
+# The client talks to a 3-node service through toxiproxy.
+
+services:
+  node-1:
+    image: node:20-alpine
+    container_name: node-1
+    command: sh -c "node /app/server.js 1 3000"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    networks:
+      - labnet
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/ping >/dev/null 2>&1 || exit 1"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
+
+  node-2:
+    image: node:20-alpine
+    container_name: node-2
+    command: sh -c "node /app/server.js 2 3000"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    networks:
+      - labnet
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/ping >/dev/null 2>&1 || exit 1"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
+
+  node-3:
+    image: node:20-alpine
+    container_name: node-3
+    command: sh -c "node /app/server.js 3 3000"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    networks:
+      - labnet
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:3000/ping >/dev/null 2>&1 || exit 1"]
+      interval: 1s
+      timeout: 1s
+      retries: 10
+      start_period: 1s
+
+  toxiproxy:
+    image: ghcr.io/shopify/toxiproxy:2.9.0
+    container_name: toxiproxy
+    command: -host 0.0.0.0 -config /config/toxiproxy.json
+    ports:
+      - "8474:8474"   # admin API on host
+    volumes:
+      - ./toxiproxy.json:/config/toxiproxy.json:ro
+    networks:
+      - labnet
+
+  client:
+    image: node:20-alpine
+    container_name: client
+    depends_on:
+      node-1:
+        condition: service_healthy
+      node-2:
+        condition: service_healthy
+      node-3:
+        condition: service_healthy
+      toxiproxy:
+        condition: service_started
+    command: sh -c "node /app/client.js"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    networks:
+      - labnet
+
+networks:
+  labnet:
+    driver: bridge
